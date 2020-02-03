@@ -8,20 +8,7 @@ import sublime
 import sublime_plugin
 
 
-class OpenInGitRepositoryCommand(sublime_plugin.WindowCommand):
-    def run(self):
-        project_root = self._get_project_root()
-        remote_url = self._get_remote_url(project_root)
-        remote_url = self._normalize_remote_url(remote_url)
-        project_file_path = self._get_file_project_path(project_root)
-        line_suffix = self._get_line_suffix()
-        remote_file_url = self._get_remote_file_url(
-            remote_url,
-            project_root,
-            project_file_path,
-            line_suffix
-        )
-        webbrowser.open(remote_file_url)
+class GitURLBaseCommand(sublime_plugin.WindowCommand):
 
     def is_enabled(self):
         file_name = self.window.active_view().file_name()
@@ -44,8 +31,7 @@ class OpenInGitRepositoryCommand(sublime_plugin.WindowCommand):
         return exit_code == 0
 
     def _get_current_branch(self, project_root):
-        output = subprocess.check_output(
-            ['git', '-C', project_root, 'rev-parse', '--abbrev-ref', 'HEAD'])
+        output = subprocess.check_output("git -C %s symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'" % (project_root), shell=True)
         return output.decode('utf-8').strip()
 
     def _get_remote_url(self, path):
@@ -53,8 +39,8 @@ class OpenInGitRepositoryCommand(sublime_plugin.WindowCommand):
         output = output.decode('utf-8')
         if not output:
             return None
-        match = re.match(r'\w+\s(.+)(?= )', output)
-        return match.group(1)
+        match = re.match(r'\w+\s(.+)(?= )', output).group(1)
+        return self._normalize_remote_url(match)
 
     def _normalize_remote_url(self, url):
         if url.startswith('https://'):
@@ -77,8 +63,13 @@ class OpenInGitRepositoryCommand(sublime_plugin.WindowCommand):
             return "#L%s" % (start) if start != 1 else ""
         return "#L%s-L%s" % (start, end)
 
-    def _get_remote_file_url(
-            self, remote_url, project_root, project_file_path, line_suffix):
+    def _get_remote_file_url(self):
+        project_root = self._get_project_root()
+        remote_url = self._get_remote_url(project_root)
+        remote_url = self._normalize_remote_url(remote_url)
+        project_file_path = self._get_file_project_path(project_root)
+        line_suffix = self._get_line_suffix()
+
         host = urlparse(remote_url).netloc
         branch = self._get_current_branch(project_root)
         path_modifiers = {
@@ -90,3 +81,13 @@ class OpenInGitRepositoryCommand(sublime_plugin.WindowCommand):
             path_modifier,
             branch,
             project_file_path + line_suffix])
+
+
+class OpenInGitRepositoryCommand(GitURLBaseCommand):
+    def run(self):
+        webbrowser.open(self._get_remote_file_url())
+
+
+class CopyGitRepositoryURLCommand(GitURLBaseCommand):
+    def run(self):
+        sublime.set_clipboard(self._get_remote_file_url())

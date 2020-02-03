@@ -2,5 +2,9 @@
     {
         "caption": "Open in Git Repository",
         "command": "open_in_git_repository"
+    },
+    {
+        "caption": "Copy Git Repository URL",
+        "command": "copy_git_repository_url"
     }
 ]
